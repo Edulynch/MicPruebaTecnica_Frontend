@@ -1,0 +1,6 @@
+.sidebar-mini .user-panel {
+  display: block;
+}
+.sidebar-mini .user-panel .info {
+  display: none;
+}
