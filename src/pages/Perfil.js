@@ -1,47 +1,69 @@
-// /src/pages/Perfil.js
-import React, { useEffect } from 'react';
+// src/pages/Perfil.js
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { jwtDecode } from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode'; // Importación nombrada
 import Sidebar from '../components/Sidebar';
 
 const Perfil = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Verificar autenticación
+  // Verificar autenticación y token
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
       navigate('/login');
-    } else {
-      try {
-        const decoded = jwtDecode(token);
-        const currentTime = Date.now() / 1000;
-        if (decoded.exp < currentTime) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          navigate('/login');
-        }
-      } catch (error) {
+      return;
+    }
+    try {
+      const decoded = jwtDecode(token);
+      const currentTime = Date.now() / 1000;
+      if (decoded.exp < currentTime) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         navigate('/login');
+        return;
       }
+    } catch (error) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      navigate('/login');
+      return;
     }
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
   }, [navigate]);
 
-  const storedUser = localStorage.getItem('user');
-  const user = storedUser ? JSON.parse(storedUser) : null;
+  if (loading) {
+    return (
+      <div className="wrapper">
+        <p>Cargando perfil...</p>
+      </div>
+    );
+  }
 
-  // Nombres completos para el contenido y nombres cortos para el sidebar
-  const fullFirstName = user && user.firstName ? user.firstName : 'Nombre';
-  const fullLastName = user && user.lastName ? user.lastName : 'Usuario';
+  if (!user) {
+    return (
+      <div className="wrapper">
+        <p>No se encontró información del usuario.</p>
+      </div>
+    );
+  }
+
+  // Nombres completos y cortos para el contenido y sidebar
+  const fullFirstName = user.firstName || 'Nombre';
+  const fullLastName = user.lastName || 'Usuario';
   const firstNameShort = fullFirstName.split(' ')[0];
   const lastNameShort = fullLastName.split(' ')[0];
   const userNameShort = `${firstNameShort} ${lastNameShort}`;
 
-  const email = user && user.email ? user.email : 'Correo no disponible';
-  const shippingAddress = user && user.shippingAddress ? user.shippingAddress : 'Dirección no disponible';
-  const birthDate = user && user.birthDate ? user.birthDate : 'Fecha no disponible';
+  const email = user.email || 'Correo no disponible';
+  const shippingAddress = user.shippingAddress || 'Dirección no disponible';
+  const birthDate = user.birthDate || 'Fecha no disponible';
 
   return (
     <div className="wrapper">

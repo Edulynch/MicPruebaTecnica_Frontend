@@ -1,173 +1,286 @@
-import React, { useState, useEffect } from 'react';
-import { Box, TextField, Button, Typography, Modal } from '@mui/material';
-import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+// src/pages/ResetearContrasena.js
+import React, { useState } from "react";
+import axios from "axios";
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  Box,
+  TextField,
+  Button,
+  Typography,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from "@mui/material";
+import backgroundImage from "../assets/img/background_login.jpg";
 
-const RestablecerContrasena = () => {
+const ResetearContrasena = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [email, setEmail] = useState('');
-  const [resetCode, setResetCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  // Extraer el email de la query string (si existe)
+  const queryParams = new URLSearchParams(location.search);
+  const emailQuery = queryParams.get("email") || "";
+
+  // Estados para los campos del formulario
+  const [email, setEmail] = useState(emailQuery);
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+
+  // Estados para errores en la validación en tiempo real
+  const [emailError, setEmailError] = useState("");
+  const [resetCodeError, setResetCodeError] = useState("");
+  const [newPasswordError, setNewPasswordError] = useState("");
+  const [confirmNewPasswordError, setConfirmNewPasswordError] = useState("");
+
+  // Estados generales para feedback y carga
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
   const [openModal, setOpenModal] = useState(false);
 
-  // Recupera el email desde el query params (debe llegar desde el formulario anterior)
-  useEffect(() => {
-    const queryParams = new URLSearchParams(location.search);
-    const emailFromParams = queryParams.get('email');
-    setEmail(emailFromParams || '');  // Si no llega, por defecto vacio
-  }, [location]);
+  // Regex para validar el email (mismo patrón que usamos en otros formularios)
+  const EMAIL_REGEX = /^[\w.!#$%&'*+/=?^`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+
+  const handleEmailChange = (e) => {
+    const value = e.target.value;
+    setEmail(value);
+    if (!EMAIL_REGEX.test(value)) {
+      setEmailError("El formato del correo no es válido.");
+    } else {
+      setEmailError("");
+    }
+  };
+
+  const handleResetCodeChange = (e) => {
+    const value = e.target.value;
+    setResetCode(value);
+    if (!value.trim()) {
+      setResetCodeError("El código de recuperación es obligatorio.");
+    } else {
+      setResetCodeError("");
+    }
+  };
+
+  const handleNewPasswordChange = (e) => {
+    const value = e.target.value;
+    setNewPassword(value);
+    if (value.length < 6) {
+      setNewPasswordError("La contraseña debe tener al menos 6 caracteres.");
+    } else {
+      setNewPasswordError("");
+    }
+    // Verificar que coincida con la confirmación, si ya se ingresó
+    if (confirmNewPassword && value !== confirmNewPassword) {
+      setConfirmNewPasswordError("Las contraseñas no coinciden.");
+    } else {
+      setConfirmNewPasswordError("");
+    }
+  };
+
+  const handleConfirmNewPasswordChange = (e) => {
+    const value = e.target.value;
+    setConfirmNewPassword(value);
+    if (newPassword !== value) {
+      setConfirmNewPasswordError("Las contraseñas no coinciden.");
+    } else {
+      setConfirmNewPasswordError("");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    // Verificar que todos los campos estén llenos
+    if (!email || !resetCode || !newPassword || !confirmNewPassword) {
+      setError("Todos los campos son obligatorios.");
+      return;
+    }
+    // Verificar si hay errores de validación en tiempo real
+    if (emailError || resetCodeError || newPasswordError || confirmNewPasswordError) {
+      setError("Por favor, corrige los errores en el formulario.");
+      return;
+    }
+
+    setLoading(true);
     try {
-      // Realizar el restablecimiento de la contrasena
-      await axios.post('http://localhost:8080/api/users/password-reset/reset', {
+      await axios.post("http://localhost:8080/api/users/password-reset/reset", {
         email,
         resetCode,
         newPassword,
       });
-      setSuccess('Contraseña actualizada correctamente.');
-      setError('');
-      setOpenModal(true);  // Abre el modal de éxito
+      setSuccess("Contraseña actualizada exitosamente.");
+      setOpenModal(true);
     } catch (err) {
-      setError('Código de recuperación inválido o expirado.');
-      setSuccess('');
+      if (err.response && err.response.data && err.response.data.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Error al restablecer la contraseña.");
+      }
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleCloseModal = () => {
+    setOpenModal(false);
+    navigate("/login");
   };
 
   return (
     <Box
       sx={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        backgroundColor: '#004e92',
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh",
+        backgroundImage: `url(${backgroundImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundColor: "#004e92",
       }}
     >
       <Box
+        component="form"
+        onSubmit={handleSubmit}
         sx={{
           padding: 4,
           borderRadius: 3,
           boxShadow: 10,
-          backgroundColor: 'rgba(255, 255, 255, 0.8)',
-          backdropFilter: 'blur(10px)',
-          width: '100%',
-          maxWidth: '400px',
-          border: '2px solid #0056b3',
+          backgroundColor: "rgba(255, 255, 255, 0.8)",
+          backdropFilter: "blur(10px)",
+          width: "100%",
+          maxWidth: "400px",
+          border: "2px solid #0056b3",
         }}
       >
-        <Typography component="h1" variant="h5" align="center" sx={{ color: '#0056b3' }}>
-          Restablecer Contraseña
+        <Typography variant="h5" align="center" sx={{ color: "#0056b3", mb: 2 }}>
+          Resetear Contraseña
         </Typography>
-        {error && <Typography color="error" align="center" sx={{ marginTop: 2 }}>{error}</Typography>}
-        {success && <Typography color="success" align="center" sx={{ marginTop: 2 }}>{success}</Typography>}
-        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
-          {/* Correo Electrónico */}
-          <TextField
-            margin="normal"
-            fullWidth
-            label="Correo Electrónico"
-            name="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            sx={{
-              '& .MuiInputLabel-root': { color: '#0056b3' },
-              '& .MuiOutlinedInput-root': {
-                '& fieldset': { borderColor: '#0056b3' },
-                '&:hover fieldset': { borderColor: '#003f7d' },
-                '&.Mui-focused fieldset': { borderColor: '#003f7d' },
-              },
-            }}
-          />
-          {/* Código de Recuperación */}
-          <TextField
-            margin="normal"
-            fullWidth
-            label="Código de Recuperación"
-            name="resetCode"
-            value={resetCode}
-            onChange={(e) => setResetCode(e.target.value)}
-            sx={{
-              '& .MuiInputLabel-root': { color: '#0056b3' },
-              '& .MuiOutlinedInput-root': {
-                '& fieldset': { borderColor: '#0056b3' },
-                '&:hover fieldset': { borderColor: '#003f7d' },
-                '&.Mui-focused fieldset': { borderColor: '#003f7d' },
-              },
-            }}
-          />
-          {/* Nueva Contraseña */}
-          <TextField
-            margin="normal"
-            fullWidth
-            label="Nueva Contraseña"
-            name="newPassword"
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            sx={{
-              '& .MuiInputLabel-root': { color: '#0056b3' },
-              '& .MuiOutlinedInput-root': {
-                '& fieldset': { borderColor: '#0056b3' },
-                '&:hover fieldset': { borderColor: '#003f7d' },
-                '&.Mui-focused fieldset': { borderColor: '#003f7d' },
-              },
-            }}
-          />
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2, backgroundColor: '#003f7d', '&:hover': { backgroundColor: '#0056b3' } }}
-          >
-            Resetear Contraseña
-          </Button>
-        </Box>
-      </Box>
-
-      {/* Modal de éxito */}
-      <Modal
-        open={openModal}
-        onClose={() => setOpenModal(false)}
-        aria-labelledby="modal-title"
-        aria-describedby="modal-description"
-      >
-        <Box
+        {error && (
+          <Typography color="error" align="center" sx={{ mb: 2 }}>
+            {error}
+          </Typography>
+        )}
+        {success && (
+          <Typography color="primary" align="center" sx={{ mb: 2 }}>
+            {success}
+          </Typography>
+        )}
+        <TextField
+          fullWidth
+          label="Correo Electrónico"
+          name="email"
+          value={email}
+          onChange={handleEmailChange}
+          error={!!emailError}
+          helperText={emailError}
           sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            backgroundColor: 'white',
-            padding: 4,
-            borderRadius: 3,
-            boxShadow: 24,
-            width: '300px',
+            mb: 2,
+            "& .MuiInputLabel-root": { color: "#0056b3" },
+            "& .MuiOutlinedInput-root": {
+              "& fieldset": { borderColor: "#0056b3" },
+              "&:hover fieldset": { borderColor: "#003f7d" },
+              "&.Mui-focused fieldset": { borderColor: "#003f7d" },
+            },
+          }}
+        />
+        <TextField
+          fullWidth
+          label="Código de Recuperación"
+          name="resetCode"
+          value={resetCode}
+          onChange={handleResetCodeChange}
+          error={!!resetCodeError}
+          helperText={resetCodeError}
+          sx={{
+            mb: 2,
+            "& .MuiInputLabel-root": { color: "#0056b3" },
+            "& .MuiOutlinedInput-root": {
+              "& fieldset": { borderColor: "#0056b3" },
+              "&:hover fieldset": { borderColor: "#003f7d" },
+              "&.Mui-focused fieldset": { borderColor: "#003f7d" },
+            },
+          }}
+        />
+        <TextField
+          fullWidth
+          label="Nueva Contraseña"
+          name="newPassword"
+          type="password"
+          value={newPassword}
+          onChange={handleNewPasswordChange}
+          error={!!newPasswordError}
+          helperText={newPasswordError}
+          sx={{
+            mb: 2,
+            "& .MuiInputLabel-root": { color: "#0056b3" },
+            "& .MuiOutlinedInput-root": {
+              "& fieldset": { borderColor: "#0056b3" },
+              "&:hover fieldset": { borderColor: "#003f7d" },
+              "&.Mui-focused fieldset": { borderColor: "#003f7d" },
+            },
+          }}
+        />
+        <TextField
+          fullWidth
+          label="Confirmar Nueva Contraseña"
+          name="confirmNewPassword"
+          type="password"
+          value={confirmNewPassword}
+          onChange={handleConfirmNewPasswordChange}
+          error={!!confirmNewPasswordError}
+          helperText={confirmNewPasswordError}
+          sx={{
+            mb: 2,
+            "& .MuiInputLabel-root": { color: "#0056b3" },
+            "& .MuiOutlinedInput-root": {
+              "& fieldset": { borderColor: "#0056b3" },
+              "&:hover fieldset": { borderColor: "#003f7d" },
+              "&.Mui-focused fieldset": { borderColor: "#003f7d" },
+            },
+          }}
+        />
+        <Button
+          type="submit"
+          variant="contained"
+          fullWidth
+          disabled={loading}
+          sx={{
+            backgroundColor: "#003f7d",
+            "&:hover": { backgroundColor: "#0056b3" },
+            mb: 2,
           }}
         >
-          <Typography variant="h6" align="center" sx={{ color: '#0056b3' }}>
-            Contrasena Actualizada
+          {loading ? <CircularProgress size={24} color="inherit" /> : "Resetear Contraseña"}
+        </Button>
+      </Box>
+      <Dialog open={openModal} onClose={handleCloseModal}>
+        <DialogTitle>Contraseña Actualizada</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Tu contraseña se ha actualizado exitosamente. Ahora puedes iniciar sesión.
           </Typography>
-          <Typography variant="body2" align="center" sx={{ marginTop: 2 }}>
-            Tu contrasena se ha actualizado correctamente.
-          </Typography>
+        </DialogContent>
+        <DialogActions>
           <Button
-            fullWidth
+            onClick={handleCloseModal}
             variant="contained"
-            sx={{ mt: 2, backgroundColor: '#003f7d', '&:hover': { backgroundColor: '#0056b3' } }}
-            onClick={() => navigate('/login')}
+            sx={{
+              backgroundColor: "#003f7d",
+              "&:hover": { backgroundColor: "#0056b3" },
+            }}
           >
-            Ir al Login
+            Ir a Iniciar Sesión
           </Button>
-        </Box>
-      </Modal>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
 
-export default RestablecerContrasena;
+export default ResetearContrasena;

@@ -1,52 +1,80 @@
+// src/pages/RecuperarContrasena.js
 import React, { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   TextField,
   Button,
   Typography,
-  Link,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import backgroundImage from "../assets/img/background_login.jpg"; // Ruta correcta de la imagen
+import backgroundImage from "../assets/img/background_login.jpg";
 
 const RecuperarContrasena = () => {
   const navigate = useNavigate();
+
+  // Estado para el email, errores, indicador de carga y modal
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [loading, setLoading] = useState(false); // Para manejar el estado de carga
-  const [openModal, setOpenModal] = useState(false); // Controlar el estado del modal
+  const [loading, setLoading] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true); // Activa el spinner al empezar la solicitud
+  // Regex para validar el email (sintaxis consistente con el backend)
+  const EMAIL_REGEX = /^[\w.!#$%&'*+/=?^`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 
-    try {
-      // Llamada al endpoint de recuperación de contrasena
-      await axios.post(
-        "http://localhost:8080/api/users/password-reset/request",
-        { email }
-      );
-      setSuccess("Se ha enviado un correo con el código de recuperación.");
-      setError("");
-      setLoading(false); // Desactiva el spinner cuando termina la solicitud
-      setOpenModal(true); // Abre el modal para confirmar el envío
-    } catch (err) {
-      setError("Error al enviar el correo. Verifique el correo electrónico.");
-      setSuccess("");
-      setLoading(false); // Desactiva el spinner en caso de error
+  // Validación en tiempo real al escribir el email
+  const handleEmailChange = (e) => {
+    const value = e.target.value;
+    setEmail(value);
+    if (!EMAIL_REGEX.test(value)) {
+      setEmailError("El formato del correo no es válido.");
+    } else {
+      setEmailError("");
     }
   };
 
+  // Manejar el envío del formulario para solicitar el código de recuperación
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!email) {
+      setError("El correo es obligatorio.");
+      return;
+    }
+    if (emailError) {
+      setError("Corrige el formato del correo.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Se envía la solicitud al endpoint de recuperación de contraseña
+      await axios.post("http://localhost:8080/api/users/password-reset/request", { email });
+      // Si es exitoso, se abre el modal de confirmación
+      setOpenModal(true);
+    } catch (err) {
+      if (err.response && err.response.data && err.response.data.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Error al enviar el correo de recuperación.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Al cerrar el modal se redirige a la página de Resetear Contraseña (opcionalmente pasando el email)
   const handleCloseModal = () => {
-    setOpenModal(false); // Cierra el modal
-    navigate("/resetear-contrasena"); // Redirige al login después de cerrar el modal
+    setOpenModal(false);
+    navigate("/resetear-contrasena?email=" + encodeURIComponent(email));
   };
 
   return (
@@ -56,114 +84,80 @@ const RecuperarContrasena = () => {
         justifyContent: "center",
         alignItems: "center",
         height: "100vh",
-        backgroundImage: `url(${backgroundImage})`, // Usando la imagen importada
+        backgroundImage: `url(${backgroundImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        position: "relative",
-        overflow: "hidden",
-        backgroundColor: "#004e92", // Azul marino de fondo, por si la imagen no carga
+        backgroundColor: "#004e92",
       }}
     >
       <Box
+        component="form"
+        onSubmit={handleSubmit}
         sx={{
           padding: 4,
           borderRadius: 3,
           boxShadow: 10,
-          backgroundColor: "rgba(255, 255, 255, 0.8)", // Fondo semi-transparente para el formulario
+          backgroundColor: "rgba(255, 255, 255, 0.8)",
           backdropFilter: "blur(10px)",
           width: "100%",
           maxWidth: "400px",
-          border: "2px solid #0056b3", // Borde que combina con el fondo azul
+          border: "2px solid #0056b3",
         }}
       >
-        <Typography
-          component="h1"
-          variant="h5"
-          align="center"
-          sx={{ color: "#0056b3" }}
-        >
+        <Typography variant="h5" align="center" sx={{ color: "#0056b3", mb: 2 }}>
           Recuperar Contraseña
         </Typography>
         {error && (
-          <Typography color="error" align="center" sx={{ marginTop: 2 }}>
+          <Typography color="error" align="center" sx={{ mb: 2 }}>
             {error}
           </Typography>
         )}
-        {success && (
-          <Typography color="success" align="center" sx={{ marginTop: 2 }}>
-            {success}
-          </Typography>
-        )}
-        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
-          <TextField
-            margin="normal"
-            fullWidth
-            label="Correo Electrónico"
-            name="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoFocus
-            sx={{
-              "& .MuiInputLabel-root": {
-                color: "#0056b3",
-              },
-              "& .MuiOutlinedInput-root": {
-                "& fieldset": {
-                  borderColor: "#0056b3",
-                },
-                "&:hover fieldset": {
-                  borderColor: "#003f7d",
-                },
-                "&.Mui-focused fieldset": {
-                  borderColor: "#003f7d",
-                },
-              },
-            }}
-          />
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{
-              mt: 3,
-              mb: 2,
-              backgroundColor: "#003f7d",
-              "&:hover": { backgroundColor: "#0056b3" },
-            }}
-            disabled={loading} // Desactiva el botón mientras se está cargando
-          >
-            {loading ? (
-              <CircularProgress size={24} color="inherit" />
-            ) : (
-              "Solicitar Código"
-            )}
-          </Button>
-        </Box>
-        <Box sx={{ textAlign: "center", mt: 2 }}>
-          <Typography variant="body2">
-            ¿Ya tienes una cuenta?{" "}
-            <Link
-              href="/login"
-              sx={{ color: "#003f7d", textDecoration: "none" }}
-            >
-              Iniciar sesión
-            </Link>
-          </Typography>
-        </Box>
+        <TextField
+          fullWidth
+          label="Correo Electrónico"
+          name="email"
+          value={email}
+          onChange={handleEmailChange}
+          error={!!emailError}
+          helperText={emailError}
+          sx={{
+            mb: 2,
+            "& .MuiInputLabel-root": { color: "#0056b3" },
+            "& .MuiOutlinedInput-root": {
+              "& fieldset": { borderColor: "#0056b3" },
+              "&:hover fieldset": { borderColor: "#003f7d" },
+              "&.Mui-focused fieldset": { borderColor: "#003f7d" },
+            },
+          }}
+        />
+        <Button
+          type="submit"
+          variant="contained"
+          fullWidth
+          disabled={loading}
+          sx={{
+            backgroundColor: "#003f7d",
+            "&:hover": { backgroundColor: "#0056b3" },
+            mb: 2,
+          }}
+        >
+          {loading ? <CircularProgress size={24} color="inherit" /> : "Solicitar Código"}
+        </Button>
       </Box>
-
-      {/* Modal de confirmación */}
       <Dialog open={openModal} onClose={handleCloseModal}>
-        <DialogTitle>¡Recuperar Contraseña!</DialogTitle>
+        <DialogTitle>Correo Enviado</DialogTitle>
         <DialogContent>
           <Typography>
-            Hemos enviado un correo con el código de recuperación. Revisa tu
-            correo para continuar con el proceso.
+            Se ha enviado un correo con el código de recuperación. Revisa tu bandeja de entrada.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseModal} color="primary">
-            Cerrar
+          <Button
+            onClick={handleCloseModal}
+            variant="contained"
+            sx={{ backgroundColor: "#003f7d", "&:hover": { backgroundColor: "#0056b3" } }}
+          >
+            Ir a Resetear Contraseña
           </Button>
         </DialogActions>
       </Dialog>

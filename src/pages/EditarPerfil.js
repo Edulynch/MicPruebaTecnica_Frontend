@@ -1,13 +1,15 @@
+// src/pages/EditarPerfil.js
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
-import { Modal, Button } from "react-bootstrap"; // Asegúrate de instalar react-bootstrap
+import { Modal, Button } from "react-bootstrap";
 
 const EditarPerfil = () => {
   const navigate = useNavigate();
 
+  // Estados para los campos del formulario
   const [showModal, setShowModal] = useState(false);
   const [id, setId] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -18,56 +20,63 @@ const EditarPerfil = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [userEmail, setUserEmail] = useState(""); // Guardado del email desde el localStorage
+  const [userEmail, setUserEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // Verificar token y cargar datos del usuario al montar
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
       navigate("/login");
-    } else {
-      try {
-        const decoded = jwtDecode(token);
-        const currentTime = Date.now() / 1000;
-        if (decoded.exp < currentTime) {
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
-          navigate("/login");
-        }
-      } catch (error) {
+      return;
+    }
+    try {
+      const decoded = jwtDecode(token);
+      const currentTime = Date.now() / 1000;
+      if (decoded.exp < currentTime) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         navigate("/login");
+        return;
       }
+    } catch (error) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      navigate("/login");
+      return;
     }
-
     const storedUser = localStorage.getItem("user");
-    const initialUser = storedUser ? JSON.parse(storedUser) : {};
-    setId(initialUser.id);
-    setFirstName(initialUser.firstName);
-    setLastName(initialUser.lastName);
-    setEmail(initialUser.email); // Establecemos el email directamente desde localStorage
-    setShippingAddress(initialUser.shippingAddress);
-    setBirthDate(initialUser.birthDate);
-    setUserEmail(initialUser.email);
+    if (storedUser) {
+      const initialUser = JSON.parse(storedUser);
+      setId(initialUser.id);
+      setFirstName(initialUser.firstName);
+      setLastName(initialUser.lastName);
+      setEmail(initialUser.email); // El email se toma de localStorage
+      setShippingAddress(initialUser.shippingAddress);
+      setBirthDate(initialUser.birthDate);
+      setUserEmail(initialUser.email);
+    } else {
+      navigate("/login");
+    }
   }, [navigate]);
 
   const handleSubmit = async () => {
     if (email !== userEmail) {
-      setError(
-        "El correo electrónico no coincide con el guardado en la cuenta."
-      );
+      setError("El correo electrónico no coincide con el guardado en la cuenta.");
       setSuccess("");
       return;
     }
 
     const updatedUser = { firstName, lastName, shippingAddress, birthDate };
     if (password.trim() !== "") {
+      if (password.trim().length < 6) {
+        setError("La contraseña debe tener al menos 6 caracteres.");
+        return;
+      }
       updatedUser.password = password;
     }
 
-    setIsLoading(true); // Establecemos el estado de cargando
-
+    setIsLoading(true);
     const token = localStorage.getItem("token");
     try {
       const response = await axios.put(
@@ -89,19 +98,19 @@ const EditarPerfil = () => {
   };
 
   const handleConfirmUpdate = () => {
-    setShowModal(false); // Cerrar modal
+    setShowModal(false);
     handleSubmit();
   };
 
   const handleOpenModal = () => {
-    setShowModal(true); // Abrir el modal
+    setShowModal(true);
   };
 
   const handleCloseModal = () => {
-    setShowModal(false); // Cerrar el modal sin hacer nada
+    setShowModal(false);
   };
 
-  // Para el sidebar: nombres cortos (solo el primer nombre y primer apellido)
+  // Nombres cortos para el Sidebar (primer nombre y primer apellido)
   const firstNameShort = firstName ? firstName.split(" ")[0] : "Nombre";
   const lastNameShort = lastName ? lastName.split(" ")[0] : "Usuario";
   const userNameShort = `${firstNameShort} ${lastNameShort}`;
@@ -146,10 +155,8 @@ const EditarPerfil = () => {
               </div>
               <div className="card-body">
                 {error && <div className="alert alert-danger">{error}</div>}
-                {success && (
-                  <div className="alert alert-success">{success}</div>
-                )}
-                <form onSubmit={handleOpenModal}>
+                {success && <div className="alert alert-success">{success}</div>}
+                <form onSubmit={(e) => { e.preventDefault(); handleOpenModal(); }}>
                   <div className="form-group">
                     <label htmlFor="firstName">Nombre</label>
                     <input
