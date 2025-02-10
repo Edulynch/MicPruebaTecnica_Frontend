@@ -17,7 +17,7 @@ const DetalleOrden = () => {
   const navigate = useNavigate();
   const [order, setOrder] = useState(null);
 
-  // Memorizamos la función para obtener el detalle de la orden
+  // Función para obtener el detalle de la orden
   const fetchOrderDetail = useCallback(async () => {
     try {
       const response = await api.get(`/orders/${orderId}`);
@@ -27,22 +27,43 @@ const DetalleOrden = () => {
     }
   }, [orderId]);
 
-  // Ejecutamos la función al montar el componente y cuando cambie "orderId"
   useEffect(() => {
     fetchOrderDetail();
   }, [fetchOrderDetail]);
 
-  // Obtener información del usuario para el Sidebar
-  const storedUser = localStorage.getItem('user');
-  const user = storedUser ? JSON.parse(storedUser) : {};
-  const firstNameShort = user.firstName ? user.firstName.split(' ')[0] : 'Usuario';
-  const lastNameShort = user.lastName ? user.lastName.split(' ')[0] : '';
-  const userNameShort = `${firstNameShort} ${lastNameShort}`;
+  // Función auxiliar para traducir el status al español
+  const translateStatus = (status) => {
+    switch (status) {
+      case "PENDING":
+        return "Pendiente";
+      case "CONFIRMED":
+        return "Confirmado";
+      case "PROCESSING":
+        return "Procesando";
+      case "SHIPPED":
+        return "Enviado";
+      case "DELIVERED":
+        return "Entregado";
+      case "CANCELLED":
+        return "Cancelado";
+      default:
+        return status;
+    }
+  };
+
+  // Calcular el total de la orden
+  const calculateTotal = () => {
+    if (!order || !order.items) return 0;
+    return order.items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+  };
 
   if (!order) {
     return (
       <Box>
-        <Sidebar userNameShort={userNameShort} />
+        <Sidebar userNameShort={"Usuario"} />
         <Box sx={{ marginLeft: '250px', padding: 3 }}>
           <Typography>Cargando detalles de la orden...</Typography>
         </Box>
@@ -50,16 +71,26 @@ const DetalleOrden = () => {
     );
   }
 
+  // Si la orden está cancelada, se muestra "Cancelado"; si no tiene orderNumber, se muestra "Pendiente"
+  const orderNumberText = order.status === "CANCELLED"
+    ? "Cancelado"
+    : (order.orderNumber ? order.orderNumber : "Pendiente");
+
+  // Para el Sidebar, se puede usar el nombre del usuario asociado a la orden
+  const userNameShort = order.user
+    ? `${order.user.firstName.split(" ")[0]} ${order.user.lastName.split(" ")[0]}`
+    : "Usuario";
+
   return (
     <Box>
       <Sidebar userNameShort={userNameShort} />
       <Box sx={{ marginLeft: '250px', padding: 3 }}>
         <Typography variant="h4">Detalle de la Orden</Typography>
         <Typography variant="subtitle1">
-          Número de Orden: {order.orderNumber || 'Pendiente'}
+          Número de Orden: {orderNumberText}
         </Typography>
         <Typography variant="subtitle1">
-          Estado: {order.status}
+          Estado: {translateStatus(order.status)}
         </Typography>
         <Typography variant="subtitle1">
           Dirección de Envío: {order.shippingAddress}
@@ -74,6 +105,9 @@ const DetalleOrden = () => {
             </ListItem>
           ))}
         </List>
+        <Typography variant="h6">
+          Total: ${calculateTotal()}
+        </Typography>
         <Button variant="contained" onClick={() => navigate(-1)}>
           Volver
         </Button>
