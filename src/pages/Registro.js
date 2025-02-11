@@ -1,6 +1,5 @@
 // src/pages/Registro.js
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -9,8 +8,32 @@ import {
   Typography,
   Link,
   CircularProgress,
+  IconButton,
+  InputAdornment,
 } from "@mui/material";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import backgroundImage from "../assets/img/background_login.jpg";
+import api from "../api"; // Usamos la instancia configurada en api.js
+
+// Función para parsear la fecha (en formato "YYYY-MM-DD") a un objeto Date en hora local
+const parseLocalDate = (dateString) => {
+  const [year, month, day] = dateString.split("-").map(Number);
+  // Los meses en JavaScript son 0-indexados
+  return new Date(year, month - 1, day);
+};
+
+// Función que determina si la fecha corresponde a una persona mayor de 18 años
+const isAdult = (dateString) => {
+  const birth = parseLocalDate(dateString);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age >= 18;
+};
 
 const Registro = () => {
   const navigate = useNavigate();
@@ -28,14 +51,29 @@ const Registro = () => {
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
+  const [birthDateError, setBirthDateError] = useState("");
 
   // Estados generales
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Estados para mostrar/ocultar contraseñas
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Handlers para alternar visibilidad de contraseñas
+  const handleTogglePassword = () => {
+    setShowPassword((prev) => !prev);
+  };
+
+  const handleToggleConfirmPassword = () => {
+    setShowConfirmPassword((prev) => !prev);
+  };
+
   // Regex para validar el correo (compatible con la validación del backend)
-  const EMAIL_REGEX = /^[\w.!#$%&'*+/=?^`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+  const EMAIL_REGEX =
+    /^[\w.!#$%&'*+/=?^`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 
   // Validación en tiempo real del email
   const handleEmailChange = (e) => {
@@ -59,7 +97,7 @@ const Registro = () => {
     } else {
       setPasswordError("");
     }
-    // Compara con confirmPassword si ya se ingresó
+    // Si ya hay confirmación ingresada, comparar
     if (confirmPassword && value !== confirmPassword) {
       setConfirmPasswordError("Las contraseñas no coinciden.");
     } else {
@@ -77,12 +115,24 @@ const Registro = () => {
     }
   };
 
+  // Validación en tiempo real de la fecha de nacimiento
+  const handleBirthDateChange = (e) => {
+    const value = e.target.value;
+    setBirthDate(value);
+    if (value && !isAdult(value)) {
+      setBirthDateError("El usuario debe ser mayor de 18 años.");
+    } else {
+      setBirthDateError("");
+    }
+  };
+
   // Manejar el envío del formulario
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
+    // Verificar que todos los campos estén completos
     if (
       !firstName ||
       !lastName ||
@@ -96,7 +146,7 @@ const Registro = () => {
       return;
     }
 
-    if (emailError || passwordError || confirmPasswordError) {
+    if (emailError || passwordError || confirmPasswordError || birthDateError) {
       setError("Por favor, corrige los errores del formulario.");
       return;
     }
@@ -104,7 +154,7 @@ const Registro = () => {
     setLoading(true);
 
     try {
-      await axios.post("http://localhost:8080/api/users", {
+      await api.post("/users", {
         firstName,
         lastName,
         email,
@@ -231,7 +281,9 @@ const Registro = () => {
           type="date"
           InputLabelProps={{ shrink: true }}
           value={birthDate}
-          onChange={(e) => setBirthDate(e.target.value)}
+          onChange={handleBirthDateChange}
+          error={!!birthDateError}
+          helperText={birthDateError}
           sx={{
             "& .MuiInputLabel-root": { color: "#0056b3" },
             "& .MuiOutlinedInput-root": {
@@ -262,11 +314,20 @@ const Registro = () => {
           fullWidth
           label="Contraseña"
           name="password"
-          type="password"
+          type={showPassword ? "text" : "password"}
           value={password}
           onChange={handlePasswordChange}
           error={!!passwordError}
           helperText={passwordError}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton onClick={handleTogglePassword} edge="end">
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
           sx={{
             "& .MuiInputLabel-root": { color: "#0056b3" },
             "& .MuiOutlinedInput-root": {
@@ -281,11 +342,20 @@ const Registro = () => {
           fullWidth
           label="Confirmar Contraseña"
           name="confirmPassword"
-          type="password"
+          type={showConfirmPassword ? "text" : "password"}
           value={confirmPassword}
           onChange={handleConfirmPasswordChange}
           error={!!confirmPasswordError}
           helperText={confirmPasswordError}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton onClick={handleToggleConfirmPassword} edge="end">
+                  {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
           sx={{
             "& .MuiInputLabel-root": { color: "#0056b3" },
             "& .MuiOutlinedInput-root": {

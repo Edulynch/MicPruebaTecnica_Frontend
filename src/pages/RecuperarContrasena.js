@@ -1,6 +1,5 @@
 // src/pages/RecuperarContrasena.js
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -14,6 +13,7 @@ import {
   DialogTitle,
 } from "@mui/material";
 import backgroundImage from "../assets/img/background_login.jpg";
+import api from "../api"; // Importa la instancia de Axios configurada en api.js
 
 const RecuperarContrasena = () => {
   const navigate = useNavigate();
@@ -26,7 +26,8 @@ const RecuperarContrasena = () => {
   const [openModal, setOpenModal] = useState(false);
 
   // Regex para validar el email (sintaxis consistente con el backend)
-  const EMAIL_REGEX = /^[\w.!#$%&'*+/=?^`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+  const EMAIL_REGEX =
+    /^[\w.!#$%&'*+/=?^`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 
   // Validación en tiempo real al escribir el email
   const handleEmailChange = (e) => {
@@ -56,8 +57,8 @@ const RecuperarContrasena = () => {
     setLoading(true);
 
     try {
-      // Se envía la solicitud al endpoint de recuperación de contraseña
-      await axios.post("http://localhost:8080/api/users/password-reset/request", { email });
+      // Se envía la solicitud al endpoint de recuperación de contraseña usando la instancia "api"
+      await api.post("/users/password-reset/request", { email });
       // Si es exitoso, se abre el modal de confirmación
       setOpenModal(true);
     } catch (err) {
@@ -104,7 +105,11 @@ const RecuperarContrasena = () => {
           border: "2px solid #0056b3",
         }}
       >
-        <Typography variant="h5" align="center" sx={{ color: "#0056b3", mb: 2 }}>
+        <Typography
+          variant="h5"
+          align="center"
+          sx={{ color: "#0056b3", mb: 2 }}
+        >
           Recuperar Contraseña
         </Typography>
         {error && (
@@ -141,21 +146,29 @@ const RecuperarContrasena = () => {
             mb: 2,
           }}
         >
-          {loading ? <CircularProgress size={24} color="inherit" /> : "Solicitar Código"}
+          {loading ? (
+            <CircularProgress size={24} color="inherit" />
+          ) : (
+            "Solicitar Código"
+          )}
         </Button>
       </Box>
       <Dialog open={openModal} onClose={handleCloseModal}>
         <DialogTitle>Correo Enviado</DialogTitle>
         <DialogContent>
           <Typography>
-            Se ha enviado un correo con el código de recuperación. Revisa tu bandeja de entrada.
+            Se ha enviado un correo con el código de recuperación. Revisa tu
+            bandeja de entrada.
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button
             onClick={handleCloseModal}
             variant="contained"
-            sx={{ backgroundColor: "#003f7d", "&:hover": { backgroundColor: "#0056b3" } }}
+            sx={{
+              backgroundColor: "#003f7d",
+              "&:hover": { backgroundColor: "#0056b3" },
+            }}
           >
             Ir a Resetear Contraseña
           </Button>

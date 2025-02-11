@@ -1,6 +1,5 @@
 // src/pages/ResetearContrasena.js
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -14,6 +13,7 @@ import {
   DialogActions,
 } from "@mui/material";
 import backgroundImage from "../assets/img/background_login.jpg";
+import api from "../api"; // Importa la instancia configurada de Axios
 
 const ResetearContrasena = () => {
   const navigate = useNavigate();
@@ -42,7 +42,8 @@ const ResetearContrasena = () => {
   const [openModal, setOpenModal] = useState(false);
 
   // Regex para validar el email (mismo patrón que usamos en otros formularios)
-  const EMAIL_REGEX = /^[\w.!#$%&'*+/=?^`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+  const EMAIL_REGEX =
+    /^[\w.!#$%&'*+/=?^`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 
   const handleEmailChange = (e) => {
     const value = e.target.value;
@@ -100,15 +101,21 @@ const ResetearContrasena = () => {
       setError("Todos los campos son obligatorios.");
       return;
     }
-    // Verificar si hay errores de validación en tiempo real
-    if (emailError || resetCodeError || newPasswordError || confirmNewPasswordError) {
+    // Verificar errores en la validación en tiempo real
+    if (
+      emailError ||
+      resetCodeError ||
+      newPasswordError ||
+      confirmNewPasswordError
+    ) {
       setError("Por favor, corrige los errores en el formulario.");
       return;
     }
 
     setLoading(true);
     try {
-      await axios.post("http://localhost:8080/api/users/password-reset/reset", {
+      // Usamos la instancia "api" para enviar la solicitud POST al endpoint de resetear contraseña
+      await api.post("/users/password-reset/reset", {
         email,
         resetCode,
         newPassword,
@@ -126,6 +133,7 @@ const ResetearContrasena = () => {
     }
   };
 
+  // Al cerrar el modal se redirige a la página de login
   const handleCloseModal = () => {
     setOpenModal(false);
     navigate("/login");
@@ -158,7 +166,11 @@ const ResetearContrasena = () => {
           border: "2px solid #0056b3",
         }}
       >
-        <Typography variant="h5" align="center" sx={{ color: "#0056b3", mb: 2 }}>
+        <Typography
+          variant="h5"
+          align="center"
+          sx={{ color: "#0056b3", mb: 2 }}
+        >
           Resetear Contraseña
         </Typography>
         {error && (

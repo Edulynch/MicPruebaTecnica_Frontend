@@ -1,5 +1,5 @@
 // src/pages/Checkout.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../api";
 import {
   Box,
@@ -10,8 +10,11 @@ import {
   Switch,
 } from "@mui/material";
 import Sidebar from "../components/Sidebar";
+import { useNavigate } from "react-router-dom";
 
 const Checkout = () => {
+  const navigate = useNavigate();
+
   // Obtener datos del usuario almacenado en localStorage
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : {};
@@ -26,8 +29,28 @@ const Checkout = () => {
   // El valor inicial del campo será la dirección registrada, o vacío en caso contrario
   const [shippingAddress, setShippingAddress] = useState(registeredShippingAddress);
 
+  // Estado para almacenar el carrito obtenido del backend
+  const [cart, setCart] = useState(null);
+
+  // Estados para la orden y mensajes
   const [orderId, setOrderId] = useState(null);
   const [message, setMessage] = useState("");
+
+  // Consultar el carrito al montar el componente
+  useEffect(() => {
+    const fetchCart = async () => {
+      try {
+        const response = await api.get("/cart");
+        setCart(response.data);
+      } catch (error) {
+        console.error("Error fetching cart:", error);
+      }
+    };
+    fetchCart();
+  }, []);
+
+  // Calculamos si el carrito está vacío
+  const cartEmpty = !cart || !cart.items || cart.items.length === 0;
 
   // Función para iniciar la orden
   const initiateOrder = async () => {
@@ -86,6 +109,7 @@ const Checkout = () => {
                 checked={useRegisteredAddress}
                 onChange={handleAddressSwitch}
                 color="primary"
+                disabled={cartEmpty}
               />
             }
             label="Usar dirección registrada"
@@ -98,17 +122,40 @@ const Checkout = () => {
           fullWidth
           sx={{ mt: 2 }}
           disabled={useRegisteredAddress}
-          placeholder={
-            !useRegisteredAddress
-              ? "Ingrese su dirección personalizada"
-              : ""
-          }
+          placeholder={!useRegisteredAddress ? "Ingrese su dirección personalizada" : ""}
         />
-        <Button variant="contained" sx={{ mt: 2 }} onClick={initiateOrder}>
+        {/* Si el carrito está vacío, mostrar un mensaje y botón para ir al catálogo */}
+        {cartEmpty && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body1" color="error">
+              Tu carrito está vacío. Ve al catálogo y agrega productos a tu carrito para iniciar una orden.
+            </Typography>
+            <Button
+              variant="contained"
+              color="primary"
+              sx={{ mt: 1 }}
+              onClick={() => navigate("/catalogo")}
+            >
+              Ir al Catálogo
+            </Button>
+          </Box>
+        )}
+        {/* Botón para iniciar orden, deshabilitado si el carrito está vacío */}
+        <Button
+          variant="contained"
+          sx={{ mt: 2 }}
+          onClick={initiateOrder}
+          disabled={cartEmpty}
+        >
           Iniciar Orden
         </Button>
         {orderId && (
-          <Button variant="contained" color="success" sx={{ mt: 2, ml: 2 }} onClick={confirmOrder}>
+          <Button
+            variant="contained"
+            color="success"
+            sx={{ mt: 2, ml: 2 }}
+            onClick={confirmOrder}
+          >
             Confirmar Orden
           </Button>
         )}

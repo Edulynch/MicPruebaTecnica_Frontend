@@ -13,49 +13,45 @@ import {
   Alert,
   Pagination,
 } from "@mui/material";
-import api from "../api"; // Axios instance configurado (baseURL y token)
+import api from "../api"; // Instancia configurada de Axios
 import Sidebar from "../components/Sidebar";
+import { useCart } from "../contexts/CartContext"; // Hook del contexto
 
 const Catalogo = () => {
   const [products, setProducts] = useState([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  
-  // Estado para la cantidad ingresada por producto (clave: product.id, valor: cantidad)
   const [quantities, setQuantities] = useState({});
-  
-  /*
-    Estado para almacenar los productos ya agregados al carrito.
-    Estructura: { [productId]: { quantity: <cantidad agregada>, itemId: <id del ítem en el carrito> } }
-  */
   const [addedProducts, setAddedProducts] = useState({});
-  
-  // Estado para la notificación (tipo toast/snackbar)
   const [notification, setNotification] = useState({
     open: false,
     message: "",
     severity: "success",
   });
-  
-  // Estados para paginación
-  const [page, setPage] = useState(0); // Página actual (indexada desde 0)
+  const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
-  // Función para obtener los productos del catálogo, considerando paginación
+  const { fetchCart } = useCart();
+
+  // Función para obtener productos (9 por página)
   const fetchProducts = useCallback(async (pageNumber = 0) => {
     setLoading(true);
     try {
       let response;
       if (query.trim() === "") {
-        response = await api.get("/catalog", { params: { page: pageNumber } });
+        response = await api.get("/catalog", { params: { page: pageNumber, size: 9 } });
       } else {
-        response = await api.get("/catalog/search", { params: { query, page: pageNumber } });
+        response = await api.get("/catalog/search", { params: { query, page: pageNumber, size: 9 } });
       }
-      // Si la respuesta tiene paginación (por ejemplo, propiedad 'content')
-      if (response.data && response.data.content) {
+      console.log("Response from fetchProducts:", response.data);
+      if (response.data && response.data.content && response.data.page) {
         setProducts(response.data.content);
-        setTotalPages(response.data.totalPages);
-        setPage(response.data.number);
+        setTotalPages(response.data.page.totalPages);
+        setPage(response.data.page.number);
+      } else if (response.data && response.data.content) {
+        setProducts(response.data.content);
+        setTotalPages(1);
+        setPage(0);
       } else {
         setProducts(response.data);
         setTotalPages(1);
@@ -68,22 +64,18 @@ const Catalogo = () => {
     }
   }, [query]);
 
-  // Función para obtener el carrito y actualizar el estado de productos agregados
-  const fetchCartForAddedProducts = async () => {
+  // Función para actualizar el carrito local (para botones, etc.) y en el contexto
+  const fetchCartForAddedProducts = useCallback(async () => {
     try {
       const response = await api.get("/cart");
-      const cartItems =
-        response.data && Array.isArray(response.data.items)
-          ? response.data.items
-          : [];
+      const cartItems = (response.data && Array.isArray(response.data.items))
+        ? response.data.items
+        : [];
       const added = {};
       cartItems.forEach((item) => {
-        // Usamos el product.id como clave
         added[item.product.id] = { quantity: item.quantity, itemId: item.id };
       });
       setAddedProducts(added);
-
-      // Inicializar o actualizar "quantities" para productos ya agregados
       setQuantities((prev) => {
         const updated = { ...prev };
         Object.keys(added).forEach((productId) => {
@@ -93,39 +85,34 @@ const Catalogo = () => {
         });
         return updated;
       });
+      // Actualizamos el carrito global en el contexto
+      await fetchCart();
     } catch (error) {
-      console.error("Error al obtener el carrito para productos agregados:", error);
+      console.error("Error al obtener el carrito:", error);
     }
-  };
+  }, [fetchCart]);
 
-  // Se ejecuta cada vez que cambia la consulta o la página
   useEffect(() => {
     fetchProducts(page);
   }, [page, fetchProducts]);
 
-  // Al montar la página, cargar el carrito para sincronizar productos agregados
   useEffect(() => {
     fetchCartForAddedProducts();
-  }, []);
+  }, [fetchCartForAddedProducts]);
 
-  // Manejar el cambio de cantidad para un producto específico
   const handleQuantityChange = (productId, value) => {
     setQuantities((prev) => ({ ...prev, [productId]: value }));
   };
 
-  // Manejar agregar o actualizar el producto en el carrito
   const handleAddToCart = async (productId) => {
     const quantity = quantities[productId] ? parseInt(quantities[productId], 10) : 1;
     try {
       if (addedProducts[productId]) {
-        // Si el producto ya está en el carrito, actualizarlo mediante PUT
         const itemId = addedProducts[productId].itemId;
         await api.put(`/cart/items/${itemId}`, null, { params: { quantity } });
       } else {
-        // Agregar el producto al carrito mediante POST
         await api.post("/cart/items", null, { params: { productId, quantity } });
       }
-      // Actualizar el estado consultando nuevamente el carrito
       await fetchCartForAddedProducts();
       setNotification({
         open: true,
@@ -142,39 +129,34 @@ const Catalogo = () => {
     }
   };
 
-  // Manejar cambio de página en la paginación
   const handlePageChange = (event, value) => {
-    // El componente Pagination devuelve páginas comenzando en 1, convertir a 0-indexado
+    console.log("Page change:", value);
     setPage(value - 1);
   };
 
-  // Cerrar la notificación
   const handleCloseNotification = (event, reason) => {
     if (reason === "clickaway") return;
     setNotification((prev) => ({ ...prev, open: false }));
   };
 
-  // Obtener información del usuario para el Sidebar
-  const storedUser = localStorage.getItem("user");
-  const user = storedUser ? JSON.parse(storedUser) : {};
-  const firstNameShort = user.firstName ? user.firstName.split(" ")[0] : "Usuario";
-  const lastNameShort = user.lastName ? user.lastName.split(" ")[0] : "";
-  const userNameShort = `${firstNameShort} ${lastNameShort}`;
+  const handleQueryChange = (e) => {
+    setQuery(e.target.value);
+    setPage(0);
+  };
 
   return (
     <Box>
-      <Sidebar userNameShort={userNameShort} />
+      <Sidebar />
       <Box sx={{ ml: { xs: 0, md: "250px" }, p: 3 }}>
         <Typography variant="h4" sx={{ mb: 2 }}>
           Catálogo de Productos
         </Typography>
-        {/* Campo de búsqueda */}
         <Box sx={{ mb: 2 }}>
           <TextField
             label="Buscar producto"
             variant="outlined"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={handleQueryChange}
             fullWidth
           />
         </Box>
@@ -184,27 +166,22 @@ const Catalogo = () => {
           <>
             <Grid container spacing={2}>
               {products.map((product) => {
-                // Determinar el valor que se mostrará en el input:
-                // Si ya existe en "quantities", se usa ese valor;
-                // si no, se utiliza el valor en addedProducts o se inicia en 1.
+                const initialQuantity = addedProducts[product.id]
+                  ? addedProducts[product.id].quantity
+                  : 1;
                 const currentQuantity =
                   quantities[product.id] !== undefined
                     ? parseInt(quantities[product.id], 10)
-                    : addedProducts[product.id]
-                    ? addedProducts[product.id].quantity
-                    : 1;
+                    : initialQuantity;
 
                 let buttonText = "Agregar al Carrito";
-                let buttonDisabled = false;
                 if (addedProducts[product.id]) {
-                  if (currentQuantity === addedProducts[product.id].quantity) {
-                    buttonText = "Producto agregado";
-                    buttonDisabled = true;
-                  } else {
-                    buttonText = "Actualizar Carrito";
-                    buttonDisabled = false;
-                  }
+                  buttonText =
+                    currentQuantity === addedProducts[product.id].quantity
+                      ? "Producto agregado"
+                      : "Actualizar Carrito";
                 }
+
                 return (
                   <Grid item xs={12} sm={6} md={4} key={product.id}>
                     <Card>
@@ -237,7 +214,11 @@ const Catalogo = () => {
                           label="Cantidad"
                           type="number"
                           size="small"
-                          value={currentQuantity}
+                          value={
+                            quantities[product.id] !== undefined
+                              ? quantities[product.id]
+                              : initialQuantity
+                          }
                           onChange={(e) =>
                             handleQuantityChange(product.id, e.target.value)
                           }
@@ -247,15 +228,20 @@ const Catalogo = () => {
                           }}
                           sx={{ mt: 1 }}
                         />
-                        <Button
-                          variant="contained"
-                          color="primary"
-                          sx={{ mt: 1 }}
-                          onClick={() => handleAddToCart(product.id)}
-                          disabled={buttonDisabled}
-                        >
-                          {buttonText}
-                        </Button>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1 }}>
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={() => handleAddToCart(product.id)}
+                            disabled={
+                              addedProducts[product.id] &&
+                              (currentQuantity === addedProducts[product.id].quantity ||
+                               currentQuantity < 1)
+                            }
+                          >
+                            {buttonText}
+                          </Button>
+                        </Box>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -281,12 +267,7 @@ const Catalogo = () => {
         onClose={handleCloseNotification}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert
-          onClose={handleCloseNotification}
-          severity={notification.severity}
-          sx={{ width: "100%" }}
-          variant="filled"
-        >
+        <Alert onClose={handleCloseNotification} severity={notification.severity} sx={{ width: "100%" }} variant="filled">
           {notification.message}
         </Alert>
       </Snackbar>

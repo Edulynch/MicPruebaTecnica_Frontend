@@ -1,15 +1,21 @@
 // src/components/Sidebar.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import axios from "axios";
+import api from "../api";
 import logoImg from "../assets/img/AdminLTELogo.webp";
 import userImg from "../assets/img/userDummy.jpg";
 import { Modal, Button } from "react-bootstrap";
+import { useCart } from "../contexts/CartContext"; // Importamos el hook del contexto
 
 const Sidebar = ({ userNameShort }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = React.useState(false);
+
+  // Extraer del contexto el arreglo de items del carrito
+  const { cartItems } = useCart();
+  // Calcular la cantidad total de artículos
+  const cartItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   // Función para cerrar sesión
   const handleLogout = () => {
@@ -28,8 +34,7 @@ const Sidebar = ({ userNameShort }) => {
     const storedUser = localStorage.getItem("user");
     if (token && storedUser) {
       const user = JSON.parse(storedUser);
-      axios
-        .post("http://localhost:8080/api/auth/validate", { token })
+      api.post("/auth/validate", { token })
         .then((response) => {
           if (response.data.email !== user.email) {
             localStorage.removeItem("token");
@@ -47,7 +52,9 @@ const Sidebar = ({ userNameShort }) => {
 
   // Función para determinar si el enlace "Perfil" debe estar activo
   const isProfileActive = () => {
-    return location.pathname === "/perfil" || location.pathname === "/editar-perfil";
+    return (
+      location.pathname === "/perfil" || location.pathname === "/editar-perfil"
+    );
   };
 
   return (
@@ -87,7 +94,7 @@ const Sidebar = ({ userNameShort }) => {
             <li className="nav-item">
               <NavLink
                 to="/dashboard"
-                className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
                 style={{ textDecoration: "none" }}
               >
                 <i className="nav-icon fas fa-tachometer-alt"></i>
@@ -97,7 +104,7 @@ const Sidebar = ({ userNameShort }) => {
             <li className="nav-item">
               <NavLink
                 to="/perfil"
-                className={() => isProfileActive() ? "nav-link active" : "nav-link"}
+                className={() => (isProfileActive() ? "nav-link active" : "nav-link")}
                 style={{ textDecoration: "none" }}
               >
                 <i className="nav-icon fas fa-user"></i>
@@ -107,7 +114,7 @@ const Sidebar = ({ userNameShort }) => {
             <li className="nav-item">
               <NavLink
                 to="/catalogo"
-                className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
                 style={{ textDecoration: "none" }}
               >
                 <i className="nav-icon fas fa-list"></i>
@@ -117,17 +124,17 @@ const Sidebar = ({ userNameShort }) => {
             <li className="nav-item">
               <NavLink
                 to="/carrito"
-                className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
                 style={{ textDecoration: "none" }}
               >
                 <i className="nav-icon fas fa-shopping-cart"></i>
-                <p>Carrito</p>
+                <p>Carrito ({cartItemCount})</p>
               </NavLink>
             </li>
             <li className="nav-item">
               <NavLink
                 to="/checkout"
-                className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
                 style={{ textDecoration: "none" }}
               >
                 <i className="nav-icon fas fa-credit-card"></i>
@@ -137,7 +144,7 @@ const Sidebar = ({ userNameShort }) => {
             <li className="nav-item">
               <NavLink
                 to="/ordenes"
-                className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
                 style={{ textDecoration: "none" }}
               >
                 <i className="nav-icon fas fa-receipt"></i>
@@ -156,7 +163,7 @@ const Sidebar = ({ userNameShort }) => {
                   fontWeight: "bold",
                   borderRadius: "4px",
                   padding: "10px 20px",
-                  width: "100%"
+                  width: "100%",
                 }}
               >
                 <i className="nav-icon fas fa-sign-out-alt"></i>
@@ -173,8 +180,12 @@ const Sidebar = ({ userNameShort }) => {
         </Modal.Header>
         <Modal.Body>¿Quieres cerrar sesión?</Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={handleCloseModal}>Cancelar</Button>
-          <Button variant="danger" onClick={handleLogout}>Confirmar y Salir</Button>
+          <Button variant="secondary" onClick={handleCloseModal}>
+            Cancelar
+          </Button>
+          <Button variant="danger" onClick={handleLogout}>
+            Confirmar y Salir
+          </Button>
         </Modal.Footer>
       </Modal>
     </aside>

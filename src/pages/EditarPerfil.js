@@ -1,29 +1,48 @@
 // src/pages/EditarPerfil.js
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { jwtDecode } from "jwt-decode";
-import axios from "axios";
+import { jwtDecode } from "jwt-decode"; // Importación usando named export
+import api from "../api"; // Usamos la instancia de Axios configurada en api.js
 import Sidebar from "../components/Sidebar";
 import { Modal, Button } from "react-bootstrap";
+
+// Función para parsear una fecha en formato "YYYY-MM-DD" a un objeto Date en hora local
+const parseLocalDate = (dateString) => {
+  const [year, month, day] = dateString.split("-").map(Number);
+  // Se resta 1 al mes, ya que en JavaScript los meses son 0-indexados
+  return new Date(year, month - 1, day);
+};
+
+// Función que calcula si la fecha corresponde a una persona mayor de 18 años
+const isAdult = (dateString) => {
+  const birth = parseLocalDate(dateString);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age >= 18;
+};
 
 const EditarPerfil = () => {
   const navigate = useNavigate();
 
-  // Estados para los campos del formulario
+  // Estados para los campos del formulario y mensajes
   const [showModal, setShowModal] = useState(false);
-  const [id, setId] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
+  // El correo se muestra pero no se edita; se utiliza únicamente userEmail
   const [shippingAddress, setShippingAddress] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [birthDateError, setBirthDateError] = useState("");
   const [success, setSuccess] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Verificar token y cargar datos del usuario al montar
+  // Al montar el componente, se verifica el token y se cargan los datos del usuario desde localStorage
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -39,7 +58,7 @@ const EditarPerfil = () => {
         navigate("/login");
         return;
       }
-    } catch (error) {
+    } catch (err) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       navigate("/login");
@@ -48,25 +67,37 @@ const EditarPerfil = () => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       const initialUser = JSON.parse(storedUser);
-      setId(initialUser.id);
       setFirstName(initialUser.firstName);
       setLastName(initialUser.lastName);
-      setEmail(initialUser.email); // El email se toma de localStorage
+      // Se muestra el correo, pero no se edita
       setShippingAddress(initialUser.shippingAddress);
-      setBirthDate(initialUser.birthDate);
+      // Se asegura que la fecha tenga el formato YYYY-MM-DD
+      setBirthDate(initialUser.birthDate ? initialUser.birthDate.substring(0, 10) : "");
       setUserEmail(initialUser.email);
     } else {
       navigate("/login");
     }
   }, [navigate]);
 
+  // Handler para el cambio en el input de fecha, validando en tiempo real
+  const handleBirthDateChange = (e) => {
+    const value = e.target.value;
+    setBirthDate(value);
+    if (value && !isAdult(value)) {
+      setBirthDateError("El usuario debe ser mayor de 18 años");
+    } else {
+      setBirthDateError("");
+    }
+  };
+
+  // Función para enviar la actualización del perfil al backend
   const handleSubmit = async () => {
-    if (email !== userEmail) {
-      setError("El correo electrónico no coincide con el guardado en la cuenta.");
-      setSuccess("");
+    // Si hay error en la fecha de nacimiento, no se envía
+    if (birthDateError) {
+      setError(birthDateError);
       return;
     }
-
+    // Se arma el objeto de actualización sin incluir el correo (ya que este no se edita)
     const updatedUser = { firstName, lastName, shippingAddress, birthDate };
     if (password.trim() !== "") {
       if (password.trim().length < 6) {
@@ -79,8 +110,9 @@ const EditarPerfil = () => {
     setIsLoading(true);
     const token = localStorage.getItem("token");
     try {
-      const response = await axios.put(
-        "http://localhost:8080/api/users/" + id,
+      // Se usa el endpoint de perfil, el cual utiliza el DTO de actualización (UserProfileUpdateDTO)
+      const response = await api.put(
+        "/users/profile",
         updatedUser,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -91,8 +123,13 @@ const EditarPerfil = () => {
         navigate("/perfil");
       }, 2000);
     } catch (err) {
+      console.error(err);
       setIsLoading(false);
-      setError("Error al actualizar el perfil.");
+      if (err.response && err.response.data && err.response.data.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Error al actualizar el perfil.");
+      }
       setSuccess("");
     }
   };
@@ -110,7 +147,7 @@ const EditarPerfil = () => {
     setShowModal(false);
   };
 
-  // Nombres cortos para el Sidebar (primer nombre y primer apellido)
+  // Para mostrar nombres cortos en el Sidebar (primer nombre y primer apellido)
   const firstNameShort = firstName ? firstName.split(" ")[0] : "Nombre";
   const lastNameShort = lastName ? lastName.split(" ")[0] : "Usuario";
   const userNameShort = `${firstNameShort} ${lastNameShort}`;
@@ -156,7 +193,12 @@ const EditarPerfil = () => {
               <div className="card-body">
                 {error && <div className="alert alert-danger">{error}</div>}
                 {success && <div className="alert alert-success">{success}</div>}
-                <form onSubmit={(e) => { e.preventDefault(); handleOpenModal(); }}>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleOpenModal();
+                  }}
+                >
                   <div className="form-group">
                     <label htmlFor="firstName">Nombre</label>
                     <input
@@ -185,7 +227,7 @@ const EditarPerfil = () => {
                       type="email"
                       id="email"
                       className="form-control"
-                      value={email}
+                      value={userEmail}
                       disabled
                     />
                     <small className="form-text text-muted">
@@ -210,9 +252,12 @@ const EditarPerfil = () => {
                       id="birthDate"
                       className="form-control"
                       value={birthDate}
-                      onChange={(e) => setBirthDate(e.target.value)}
+                      onChange={handleBirthDateChange}
                       required
                     />
+                    {birthDateError && (
+                      <small className="text-danger">{birthDateError}</small>
+                    )}
                   </div>
                   <div className="form-group">
                     <label htmlFor="password">
