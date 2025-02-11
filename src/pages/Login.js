@@ -15,25 +15,17 @@ import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import backgroundImage from "../assets/img/background_login.jpg";
 import { jwtDecode } from "jwt-decode";
-import api from "../api"; // Usamos la instancia configurada en api.js
+import api from "../api"; // Se asume que api.js está configurado con baseURL e interceptor
 
 const Login = () => {
   const navigate = useNavigate();
-
-  // Estados para los campos y manejo de errores y carga
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Función para validar el formato del correo usando un regex robusto
-  const validateEmail = (email) => {
-    const re = /^[\w.!#$%&'*+/=?^`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
-    return re.test(email);
-  };
-
-  // useEffect para verificar si ya existe un token válido en localStorage y redirigir al dashboard
+  // Verifica si ya hay un token válido
   useEffect(() => {
     const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
@@ -47,23 +39,19 @@ const Login = () => {
           localStorage.removeItem("token");
           localStorage.removeItem("user");
         }
-      } catch (err) {
+      } catch (error) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
       }
     }
   }, [navigate]);
 
-  // Manejar el envío del formulario
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Validar el correo
-    if (!validateEmail(email)) {
-      setError("El formato del correo no es válido");
+    if (!email) {
+      setError("El correo es obligatorio");
       return;
     }
-    // Validar la contraseña: debe existir y tener al menos 6 caracteres
     if (!password) {
       setError("La contraseña es obligatoria");
       return;
@@ -72,16 +60,28 @@ const Login = () => {
       setError("La contraseña debe tener al menos 6 caracteres");
       return;
     }
-
     setError("");
     setLoading(true);
-
     try {
-      // Usamos la instancia "api" para enviar la solicitud de login
+      // Llamada al endpoint de login
       const response = await api.post("/auth/login", { email, password });
       const { token, user } = response.data;
+      
+      // Decodificar el token para extraer roles
+      const decoded = jwtDecode(token);
+      // Se asume que decoded.roles es una cadena, por ejemplo: "ADMIN,USER"
+      const rolesString = decoded.roles || "";
+      const rolesArray = rolesString.split(",").map(role => role.trim()).filter(r => r);
+      // Convertir a arreglo de objetos (por ejemplo, [{ name: "ADMIN" }, { name: "USER" }])
+      const rolesObj = rolesArray.map(r => ({ name: r }));
+      
+      // Combinar el objeto usuario con la propiedad roles
+      const userWithRoles = { ...user, roles: rolesObj };
+      
+      // Guardar en localStorage
       localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("user", JSON.stringify(userWithRoles));
+      
       navigate("/dashboard");
     } catch (err) {
       setError("Credenciales incorrectas");
@@ -100,8 +100,6 @@ const Login = () => {
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        position: "relative",
-        overflow: "hidden",
         backgroundColor: "#004e92",
       }}
     >
@@ -119,12 +117,7 @@ const Login = () => {
           border: "2px solid #0056b3",
         }}
       >
-        <Typography
-          component="h1"
-          variant="h5"
-          align="center"
-          sx={{ color: "#0056b3" }}
-        >
+        <Typography variant="h5" align="center" sx={{ color: "#0056b3" }}>
           Iniciar Sesión
         </Typography>
         {error && (
@@ -160,10 +153,7 @@ const Login = () => {
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton
-                  onClick={() => setShowPassword(!showPassword)}
-                  edge="end"
-                >
+                <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
                   {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>

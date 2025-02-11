@@ -1,78 +1,64 @@
-// src/pages/Ordenes.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 import {
   Box,
   Typography,
-  List,
-  ListItem,
-  ListItemText,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
   Button,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogContentText,
   DialogActions,
+  Paper
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { toast } from 'react-toastify';
+import { OrderStatusEnum, translateOrderStatus } from '../constants/OrderStatusEnum';
+
+const calculateOrderTotal = (order) => {
+  return order.items.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2);
+};
 
 const Ordenes = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
-
-  // Estados para el modal de cancelar orden
   const [openCancelModal, setOpenCancelModal] = useState(false);
   const [orderToCancel, setOrderToCancel] = useState(null);
-
-  // Estados para el modal de confirmar orden
   const [openConfirmModal, setOpenConfirmModal] = useState(false);
   const [orderToConfirm, setOrderToConfirm] = useState(null);
 
-  // Función para obtener las órdenes
-  const fetchOrders = async () => {
+  // Obtener información del usuario (se asume que se guarda en localStorage con la key "user")
+  const storedUser = localStorage.getItem('user');
+  const user = storedUser ? JSON.parse(storedUser) : {};
+
+  // Definimos fetchOrders con useCallback para evitar warning de dependencias
+  const fetchOrders = useCallback(async () => {
     try {
       const response = await api.get('/orders');
       const ordersData = Array.isArray(response.data)
         ? response.data
         : (response.data.content || []);
-      setOrders(ordersData);
+      // Filtrar para mostrar únicamente las órdenes del usuario logueado (por email)
+      const myOrders = ordersData.filter(
+        (order) => order.user && order.user.email === user.email
+      );
+      setOrders(myOrders);
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
-  };
+  }, [user.email]);
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [fetchOrders]);
 
-  // Función auxiliar para traducir el status al español
-  const translateStatus = (status) => {
-    switch (status) {
-      case "PENDING":
-        return "Pendiente";
-      case "CONFIRMED":
-        return "Confirmado";
-      case "PROCESSING":
-        return "Procesando";
-      case "SHIPPED":
-        return "Enviado";
-      case "DELIVERED":
-        return "Entregado";
-      case "CANCELLED":
-        return "Cancelado";
-      default:
-        return status;
-    }
-  };
-
-  // Función auxiliar para calcular el total de la orden
-  const calculateOrderTotal = (order) => {
-    return order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  };
-
-  // --- Funciones para el modal de CANCELAR ---
+  // Funciones para el modal de CANCELAR
   const handleCancelClick = (order) => {
     setOrderToCancel(order);
     setOpenCancelModal(true);
@@ -95,13 +81,14 @@ const Ordenes = () => {
     }
   };
 
-  // --- Funciones para el modal de CONFIRMAR ---
+  // Funciones para el modal de CONFIRMAR
   const handleConfirmClick = (order) => {
     setOrderToConfirm(order);
     setOpenConfirmModal(true);
   };
 
-  const handleConfirmModalClose = () => {
+  // Definimos handleCloseConfirmModal para cerrar el modal de confirmación
+  const handleCloseConfirmModal = () => {
     setOpenConfirmModal(false);
     setOrderToConfirm(null);
   };
@@ -110,7 +97,7 @@ const Ordenes = () => {
     try {
       await api.post(`/orders/${orderToConfirm.id}/confirm`);
       toast.success("Orden confirmada con éxito");
-      handleConfirmModalClose();
+      handleCloseConfirmModal();
       fetchOrders();
     } catch (error) {
       console.error("Error al confirmar la orden", error);
@@ -118,9 +105,11 @@ const Ordenes = () => {
     }
   };
 
-  // Obtener información del usuario para el Sidebar
-  const storedUser = localStorage.getItem('user');
-  const user = storedUser ? JSON.parse(storedUser) : {};
+  // Separar las órdenes en activas y canceladas
+  const activeOrders = orders.filter(order => order.status !== OrderStatusEnum.CANCELLED);
+  const cancelledOrders = orders.filter(order => order.status === OrderStatusEnum.CANCELLED);
+
+  // Preparar datos para el Sidebar
   const firstNameShort = user.firstName ? user.firstName.split(' ')[0] : 'Usuario';
   const lastNameShort = user.lastName ? user.lastName.split(' ')[0] : '';
   const userNameShort = `${firstNameShort} ${lastNameShort}`;
@@ -129,51 +118,118 @@ const Ordenes = () => {
     <Box>
       <Sidebar userNameShort={userNameShort} />
       <Box sx={{ marginLeft: '250px', padding: 3 }}>
-        <Typography variant="h4" sx={{ mb: 2 }}>
-          Órdenes
-        </Typography>
-        <List>
-          {orders.map((order) => {
-            // Si la orden está cancelada, se muestra "Cancelado"; de lo contrario, si no tiene orderNumber, se muestra "Pendiente"
-            const orderNumberText = order.status === "CANCELLED"
-              ? "Cancelado"
-              : (order.orderNumber ? order.orderNumber : "Pendiente");
-            return (
-              <ListItem key={order.id} divider>
-                <ListItemText
-                  primary={`Orden N°: ${orderNumberText}`}
-                  secondary={`Estado: ${translateStatus(order.status)} - Dirección: ${order.shippingAddress} - Total: $${calculateOrderTotal(order)}`}
-                />
-                <Button
-                  variant="outlined"
-                  onClick={() => navigate(`/ordenes/${order.id}`)}
-                >
-                  Ver Detalle
-                </Button>
-                {order.status === "PENDING" && (
-                  <>
-                    <Button
-                      variant="outlined"
-                      color="success"
-                      onClick={() => handleConfirmClick(order)}
-                      sx={{ ml: 1 }}
-                    >
-                      Confirmar Orden
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      onClick={() => handleCancelClick(order)}
-                      sx={{ ml: 1 }}
-                    >
-                      Cancelar Orden
-                    </Button>
-                  </>
-                )}
-              </ListItem>
-            );
-          })}
-        </List>
+        {/* Órdenes activas */}
+        <Typography variant="h4" sx={{ mb: 2 }}>Órdenes Activas</Typography>
+        {activeOrders.length === 0 ? (
+          <Typography variant="body1">No hay órdenes activas</Typography>
+        ) : (
+          <Paper sx={{ mb: 4, p: 2 }}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Número de Orden</TableCell>
+                  <TableCell>Usuario</TableCell>
+                  <TableCell>Estado</TableCell>
+                  <TableCell>Total</TableCell>
+                  <TableCell>Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {activeOrders.map(order => {
+                  const orderNumberText = order.orderNumber ? order.orderNumber : translateOrderStatus(OrderStatusEnum.PENDING);
+                  return (
+                    <TableRow key={order.id}>
+                      <TableCell>{order.id}</TableCell>
+                      <TableCell>
+                        {order.status === translateOrderStatus(OrderStatusEnum.CANCELLED)
+                          ? translateOrderStatus(OrderStatusEnum.CANCELLED)
+                          : orderNumberText}
+                      </TableCell>
+                      <TableCell>{order.user ? order.user.email : 'N/A'}</TableCell>
+                      <TableCell>{translateOrderStatus(order.status)}</TableCell>
+                      <TableCell>${calculateOrderTotal(order)}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => navigate(`/ordenes/${order.id}`)}
+                          sx={{ mr: 1 }}
+                        >
+                          Ver Detalle
+                        </Button>
+                        {order.status === OrderStatusEnum.PENDING && (
+                          <>
+                            <Button
+                              variant="outlined"
+                              color="success"
+                              onClick={() => handleConfirmClick(order)}
+                              sx={{ ml: 1 }}
+                            >
+                              Confirmar Orden
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              color="error"
+                              onClick={() => handleCancelClick(order)}
+                              sx={{ ml: 1 }}
+                            >
+                              Cancelar Orden
+                            </Button>
+                          </>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Paper>
+        )}
+
+        {/* Órdenes canceladas */}
+        <Typography variant="h4" sx={{ mb: 2 }}>Órdenes Canceladas</Typography>
+        {cancelledOrders.length === 0 ? (
+          <Typography variant="body1">No hay órdenes canceladas</Typography>
+        ) : (
+          <Paper sx={{ p: 2 }}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Número de Orden</TableCell>
+                  <TableCell>Usuario</TableCell>
+                  <TableCell>Estado</TableCell>
+                  <TableCell>Total</TableCell>
+                  <TableCell>Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {cancelledOrders.map(order => {
+                  const orderNumberText = order.orderNumber ? order.orderNumber : translateOrderStatus(OrderStatusEnum.PENDING);
+                  return (
+                    <TableRow key={order.id}>
+                      <TableCell>{order.id}</TableCell>
+                      <TableCell>{orderNumberText}</TableCell>
+                      <TableCell>{order.user ? order.user.email : 'N/A'}</TableCell>
+                      <TableCell>{translateOrderStatus(order.status)}</TableCell>
+                      <TableCell>${calculateOrderTotal(order)}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => navigate(`/ordenes/${order.id}`)}
+                        >
+                          Ver Detalle
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Paper>
+        )}
       </Box>
 
       {/* Modal para cancelar la orden */}
@@ -195,15 +251,15 @@ const Ordenes = () => {
       </Dialog>
 
       {/* Modal para confirmar la orden */}
-      <Dialog open={openConfirmModal} onClose={handleConfirmModalClose}>
+      <Dialog open={openConfirmModal} onClose={handleCloseConfirmModal}>
         <DialogTitle>Confirmar Orden</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            ¿Estás seguro de que deseas confirmar esta orden?
+            ¿Estás seguro que deseas confirmar esta orden?
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleConfirmModalClose} color="primary">
+          <Button onClick={handleCloseConfirmModal} color="primary">
             Cancelar
           </Button>
           <Button onClick={handleConfirmOrder} color="primary">
